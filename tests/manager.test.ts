@@ -211,9 +211,45 @@ describe("Manager Tests", () => {
     expect(manager.canRedo()).toBe(false);
   });
 
+  test("Can undo and redo in non-default scope", () => {
+    const initialText = handle.docSync().text;
+    const newText = "The ecstatic farmer enjoyed harvesting his ripe crop.";
+    const scope = "test";
+
+    manager.transaction(
+      () => {
+        undoableHandle.change((doc) => {
+          next.updateText(
+            doc,
+            ["text"],
+            newText,
+          );
+        });
+      },
+      { description: "Change text", scope },
+    );
+
+    expect(handle.docSync().text).toBe(
+      newText,
+    );
+
+    manager.undo(scope);
+
+    expect(handle.docSync().text).toBe(
+      initialText,
+    );
+
+    manager.redo(scope);
+
+    expect(handle.docSync().text).toBe(
+      newText,
+    );
+  })
+
   test.todo(
     "check that a transaction is closed if an error is thrown in the transaction function",
   );
 
   test.todo("if an undo produces no patches, do the next one");
+
 });
