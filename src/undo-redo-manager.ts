@@ -51,8 +51,22 @@ export class UndoRedoManager {
     });
   }
 
+  private getStacks(scope: string | symbol) {
+    if (!this.#undoStack[scope]) {
+      this.#undoStack[scope] = [];
+    }
+    if (!this.#redoStack[scope]) {
+      this.#redoStack[scope] = [];
+    }
+    return {
+      undoStack: this.#undoStack[scope],
+      redoStack: this.#redoStack[scope],
+    };
+  }
+
   endTransaction(options: UndoRedoOptions<unknown> = {}) {
     const scope = options.scope ?? defaultScope;
+    const { undoStack } = this.getStacks(scope);
 
     const results = [...this.#handles]
       .map(([id, handle]) => {
@@ -64,7 +78,7 @@ export class UndoRedoManager {
       return;
     }
 
-    this.#undoStack[scope].push({
+    undoStack.push({
       description: options.description,
       ids: results,
     });
@@ -79,7 +93,8 @@ export class UndoRedoManager {
   }
 
   #undo(scope: string | symbol = defaultScope) {
-    const change = this.#undoStack[scope].pop();
+    const { undoStack, redoStack } = this.getStacks(scope);
+    const change = undoStack.pop();
 
     if (!change) {
       return;
@@ -92,7 +107,7 @@ export class UndoRedoManager {
       }
     });
 
-    this.#redoStack[scope].push(change);
+    redoStack.push(change);
 
     return { ...change, scope };
   }
@@ -102,13 +117,13 @@ export class UndoRedoManager {
   }
 
   undos(scope: string | symbol = defaultScope) {
-    return this.#undoStack[scope].map((change) => change.description);
+    const { undoStack } = this.getStacks(scope);
+    return undoStack.map((change) => change.description);
   }
 
   #redo(scope: string | symbol = defaultScope) {
-    scope = scope ?? defaultScope;
-
-    const change = this.#redoStack[scope].pop();
+    const { undoStack, redoStack } = this.getStacks(scope);
+    const change = redoStack.pop();
 
     if (!change) {
       return;
@@ -121,7 +136,7 @@ export class UndoRedoManager {
       }
     });
 
-    this.#undoStack[scope].push(change);
+    undoStack.push(change);
 
     return { ...change, scope };
   }
@@ -131,16 +146,17 @@ export class UndoRedoManager {
   }
 
   redos(scope: string | symbol = defaultScope) {
-    scope = scope ?? defaultScope;
-
-    return this.#redoStack[scope].map((change) => change.description);
+    const { redoStack } = this.getStacks(scope);
+    return redoStack.map((change) => change.description);
   }
 
   canUndo(scope: string | symbol = defaultScope) {
-    return this.#undoStack[scope].length > 0;
+    const { undoStack } = this.getStacks(scope);
+    return undoStack.length > 0;
   }
 
   canRedo(scope: string | symbol = defaultScope) {
-    return this.#redoStack[scope].length > 0;
+    const { redoStack } = this.getStacks(scope);
+    return redoStack.length > 0;
   }
 }
