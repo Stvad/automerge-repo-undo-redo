@@ -32,9 +32,9 @@ export class UndoRedoManager {
 
   #transaction(
     fn: () => string | void,
-    options: UndoRedoOptions<unknown> = {},
+    options: UndoRedoOptions<unknown> & { dependencies?: DocumentId[] } = {},
   ) {
-    this.startTransaction();
+    this.startTransaction(options.dependencies);
 
     const description = fn() ?? options?.description;
 
@@ -45,10 +45,15 @@ export class UndoRedoManager {
     return this.#transaction.bind(this);
   }
 
-  startTransaction() {
-    this.#handles.forEach((handle) => {
-      handle.startTransaction();
-    });
+  startTransaction(dependencies?: DocumentId[]) {
+    // Todo: should we error out if we don't have a handle for one of the ids?
+    const handles = dependencies ?
+      dependencies.map(id => this.#handles.get(id)).filter(Boolean) :
+      [...this.#handles.values()]
+
+    handles.forEach((handle) => {
+      handle!.startTransaction()
+    })
   }
 
   private getStacks(scope: string | symbol) {
@@ -64,13 +69,17 @@ export class UndoRedoManager {
     };
   }
 
-  endTransaction(options: UndoRedoOptions<unknown> = {}) {
+  endTransaction(options: UndoRedoOptions<unknown> & { dependencies?: DocumentId[] } = {}) {
     const scope = options.scope ?? defaultScope;
     const { undoStack } = this.getStacks(scope);
 
-    const results = [...this.#handles]
+    const handleEntries = options.dependencies
+      ? options.dependencies.map(id => [id, this.#handles.get(id)] as const).filter(([, handle]) => handle)
+      : [...this.#handles];
+
+    const results = handleEntries
       .map(([id, handle]) => {
-        return handle.endTransaction(options) ? id : null;
+        return handle!.endTransaction(options) ? id : null;
       })
       .filter((id): id is DocumentId => id !== null);
 
